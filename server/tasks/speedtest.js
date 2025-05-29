@@ -45,8 +45,12 @@ module.exports.run = async (retryAuto = false) => {
 
     let serverId = mode === "cloudflare" ? 0 : await config.getValue(mode + "Id");
 
-    if (serverId === "none")
+    if (serverId === "none") {
         serverId = undefined;
+    } else {
+        const numericServerId = parseInt(serverId);
+        serverId = isNaN(numericServerId) ? undefined : numericServerId;
+    }
 
     let speedtest;
     if (mode === "cloudflare") {
@@ -58,8 +62,10 @@ module.exports.run = async (retryAuto = false) => {
     }
 
     if (mode === "ookla" && speedtest.server) {
-        if (serverId === undefined) await config.updateValue("ooklaId", speedtest.server?.id);
-        serverId = speedtest.server?.id;
+        if (serverId === undefined) {
+            await config.updateValue("ooklaId", speedtest.server.id);
+            serverId = speedtest.server.id;
+        }
     }
 
     if (mode === "libre" && speedtest.server) {
@@ -74,7 +80,7 @@ module.exports.run = async (retryAuto = false) => {
 
     if (Object.keys(speedtest).length <= 1) throw {message: "No response, even after trying again, test timed out."};
 
-    return {...speedtest, serverId}
+    return {...speedtest, serverId: speedtest.server?.id || serverId}
 }
 
 module.exports.create = async (type = "auto", retried = false) => {
@@ -95,14 +101,16 @@ module.exports.create = async (type = "auto", retried = false) => {
             test = await this.run(retried);
         }
 
+        console.log("Raw speedtest-cli output:", JSON.stringify(test, null, 2));
+
         let {ping, download, upload, time, resultId} = await parseData.parseData(process.env.PREVIEW_MODE === "true" ?
             "ookla" : mode, test);
 
         let testResult = await tests.create(ping, download, upload, time, test.serverId, type, resultId);
-        console.log(`Test #${testResult} was executed successfully in ${time}s. 🏓 ${ping} ⬇ ${download}️ ⬆ ${upload}️`);
+        console.log(`Test #${testResult} was executed successfully in ${time}s. 🏓 ${ping} ⬇ ${download}️ ⬆ ${upload}️ ${test.serverId ? `(Server: ${test.serverId})` : ""}`);
         createRecommendations().then(() => "");
         setRunning(false);
-        sendFinished({ping, download, upload, time}).then(() => "");
+        sendFinished({ping, download, upload, time, serverId: test.serverId, resultUrl: test.result?.url || null}).then(() => "");
     } catch (e) {
         console.log(e)
         if (!retried) return this.create(type, true);
