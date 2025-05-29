@@ -63,8 +63,8 @@ module.exports.run = async (retryAuto = false) => {
 
     if (mode === "ookla" && speedtest.server) {
         if (serverId === undefined) {
-            await config.updateValue("ooklaId", speedtest.server.id);
-            serverId = speedtest.server.id;
+            await config.updateValue("ooklaId", speedtest.server?.id);
+            serverId = speedtest.server?.id;
         }
     }
 
